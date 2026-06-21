@@ -85,13 +85,19 @@ def main():
 
     acertos = 0
     total = 0
+    pool = list(all_ids)
 
     print("Quiz CNH - Banco Nacional de Questões")
     print("Digite 'q' a qualquer momento para sair.\n")
 
     while True:
-        weights = [question_weight(qid, stats) for qid in all_ids]
-        (qid,) = random.choices(all_ids, weights=weights, k=1)
+        if not pool:
+            pool = list(all_ids)
+            print("\n[Todas as questões respondidas nesta sessão — reiniciando!]\n")
+
+        weights = [question_weight(qid, stats) for qid in pool]
+        (qid,) = random.choices(pool, weights=weights, k=1)
+        pool.remove(qid)
         q = by_id[qid]
 
         result = ask_question(q)
