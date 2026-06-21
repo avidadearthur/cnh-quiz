@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """CLI quiz for the CNH (Banco Nacional de Questões) question bank.
 
-Picks random questions until the user quits ('q'). Each question shows
-its módulo and dificuldade, then the shuffled alternatives (a/b/c/d...).
-After answering, prints whether the user was right or wrong and shows
-the comentário.
+Picks questions using weighted selection — wrong/unseen questions surface
+more often. Progress is persisted in data/stats.json across sessions.
+Each question shows its módulo and dificuldade, then the shuffled
+alternatives (a/b/c/d...). After answering, prints whether the user was
+right or wrong and shows the comentário.
 """
 import json
 import random
@@ -13,11 +14,32 @@ import sys
 from pathlib import Path
 
 DATA_PATH = Path(__file__).parent / "data" / "questoes.json"
+STATS_PATH = Path(__file__).parent / "data" / "stats.json"
 
 
 def load_questions():
     with open(DATA_PATH, encoding="utf-8") as f:
         return json.load(f)
+
+
+def load_stats():
+    if STATS_PATH.exists():
+        with open(STATS_PATH, encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+
+def save_stats(stats):
+    with open(STATS_PATH, "w", encoding="utf-8") as f:
+        json.dump(stats, f, ensure_ascii=False, indent=2)
+
+
+def question_weight(qid, stats):
+    s = stats.get(qid)
+    if not s or s["seen"] == 0:
+        return 2.0  # unseen: medium-high priority
+    error_rate = 1 - s["correct"] / s["seen"]
+    return 1 + 2 * error_rate  # range [1.0, 3.0]
 
 
 def ask_question(q):
@@ -57,6 +79,10 @@ def ask_question(q):
 
 def main():
     questions = load_questions()
+    stats = load_stats()
+    by_id = {str(q["id"]): q for q in questions}
+    all_ids = list(by_id.keys())
+
     acertos = 0
     total = 0
 
@@ -64,13 +90,23 @@ def main():
     print("Digite 'q' a qualquer momento para sair.\n")
 
     while True:
-        q = random.choice(questions)
+        weights = [question_weight(qid, stats) for qid in all_ids]
+        (qid,) = random.choices(all_ids, weights=weights, k=1)
+        q = by_id[qid]
+
         result = ask_question(q)
         if result is None:
             break
         total += 1
         if result:
             acertos += 1
+
+        s = stats.setdefault(qid, {"seen": 0, "correct": 0})
+        s["seen"] += 1
+        if result:
+            s["correct"] += 1
+
+    save_stats(stats)
 
     print("\n" + "=" * 70)
     if total:
