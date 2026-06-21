@@ -106,6 +106,8 @@ def main():
         if result:
             s["correct"] += 1
 
+        print(f"\nSessão: {acertos}/{total} ({acertos / total:.0%})")
+
     save_stats(stats)
 
     print("\n" + "=" * 70)
